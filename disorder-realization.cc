@@ -10,7 +10,9 @@
 
 // gen is a variable name
 // Its data-type is boost::random::mt19937
-boost::random::mt19937 gen;
+boost::random::mt19937 gen(std::time(0)); // time(0) changes seed every time you run
+//not to change seed: use 
+//boost::random::mt19937 gen;
 using namespace std;
 
 typedef
@@ -29,8 +31,8 @@ int main()
 	array_2d J_x(boost::extents[axis1][axis2]);
 	array_2d J_y(boost::extents[axis1][axis2]);
 	//Assign random sign to each NN bond & store in an array
-	ofstream fout("Jx-32.dat");	// Opens a file for output
-	ofstream gout("Jy-32.dat");
+	ofstream fout("Jx-32-2.dat");	// Opens a file for output
+	ofstream gout("Jy-32-2.dat");
 
 	for (unsigned int i = 0; i < axis1; ++i)
 	{

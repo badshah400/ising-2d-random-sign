@@ -1,9 +1,7 @@
-// g++ -Wall -O3 E-vs-beta-sim-anl.cc -o normal
+//  g++ -Wall -O3 Em-vs-beta-Replica-sim-anl.cc -o replica
 // Run with command line arguments, e.g. ./testo betamin betamax delbeta
-// Considering 2d ising model in zero magnetic field with random J sign
-//warming up system for first N_mc/10 loops
-//averaging energy for the next N_mc updates
-//incorporating SIMULATED ANNEALING
+
+// Chose same initial spin config. for both replicas
 
 #include <iostream>
 #include <fstream>
@@ -27,19 +25,22 @@ boost::multi_array < int, 2 > array_2d;
 
 // Magnitude of J
 double J = 1.0;
+
 const unsigned int axis1 = 8, axis2 = 8;
+//axis1 should be of even no. of sites
 // above assigns length along each dimension of the 2d configuration
 
 //No.of Monte Carlo updates we want
 unsigned int N_mc = 1e6;
 
 //Function templates
+double en_avg(double beta);
 int roll_coin(int a, int b);
 double random_real(int a, int b);
 double energy_tot(array_2d sitespin, array_2d J_x, array_2d J_y);
 double nn_energy(array_2d sitespin,  array_2d J_x, array_2d J_y, unsigned int row, unsigned int col);
 
-int main(int argc, char const * argv[])
+int main(int argc, char * argv[])
 {
 	if (argc != 4)
 	{
@@ -47,24 +48,6 @@ int main(int argc, char const * argv[])
 		     << endl << "Got " << argc - 1 << endl;
 		return 1;
 	}
-
-	array_2d J_x(boost::extents[axis1][axis2]);
-	array_2d J_y(boost::extents[axis1][axis2]);
-	//Read the random signed bonds for a particular stored realization
-	ifstream gxin("Jx-32-3.dat");
-	ifstream gyin("Jy-32-3.dat");
-
-	for (unsigned int i = 0; i < axis1; ++i)
-	{
-		for (unsigned int j = 0; j < axis2; ++j)
-		{
-			gxin>>J_x[i][j];
-			gyin>>J_y[i][j];
-		}
-	}
-
-	gxin.close();
-	gyin.close();
 
 	double beta_min(0), beta_max(0), del_beta(0);
 
@@ -86,43 +69,107 @@ int main(int argc, char const * argv[])
 //	cin >> beta_max;
 //	cout << "Enter increment of beta" << endl;
 //	cin >> del_beta;
-	ofstream fout("E-8.dat");	// Opens a file for output
-	ofstream gout("EA-8-3.dat");
+	ofstream fout("Em-8.dat"); // Opens a file for output
 
-//      Create a 2d array that is axis1 * axis2
-	array_2d sitespin(boost::extents[axis1][axis2]);
-//      stores the spin configuration of the system
+	array_2d J_x(boost::extents[axis1][axis2]);
+	array_2d J_y(boost::extents[axis1][axis2]);
+	//Read the random signed bonds for a particular stored realization
+	ifstream gxin("Jx-32-2.dat");
+	ifstream gyin("Jy-32-2.dat");
 
-	array_2d sitespinsum(boost::extents[axis1][axis2]);
+	for (unsigned int i = 0; i < axis1; ++i)
+	{
+		for (unsigned int j = 0; j < axis2; ++j)
+		{
+			gxin>>J_x[i][j];
+			gyin>>J_y[i][j];
+		}
+	}
+
+	gxin.close();
+	gyin.close();
 
 
-//      initial state chosen by random no. generator above
+	//define replica 1 spin configuration array
+	array_2d sitespin1(boost::extents[axis1][axis2]);
+	//define replica 2 spin configuration array
+	array_2d sitespin2(boost::extents[axis1][axis2]);
+
+	//For subsystem A,both replicas have same spin configuration
 	for (unsigned int i = 0; i < axis1; ++i)
 		for (unsigned int j = 0; j < axis2; ++j)
-			sitespin[i][j] = 2 * roll_coin(0, 1) - 1;
+		{
+			sitespin1[i][j] = 2 * roll_coin(0, 1) - 1;
+			sitespin2[i][j] = sitespin1[i][j];
+		}
 
-	double energy = energy_tot(sitespin, J_x, J_y);
+
+	double energy = 2*energy_tot(sitespin1, J_x, J_y);
+
+
 	
+	//calculate avg energy for replica spin config at temp 1/beta
+	//logic: for a[n1][n2], a[n1] is n1 copies of 1d array of length n2
+
 	fout << 0 << '\t' << 0 << endl;
-	gout << 0 << '\t' << 0 << endl;
 
 	for (double beta =beta_min + del_beta; beta < beta_max + del_beta; beta += del_beta)
 	{
-		double en_sum(0), EA(0);
-		unsigned int sys_size = axis1 * axis2;
+		
+	unsigned int sys_size = axis1 * axis2;
+	unsigned int row, col, label;
+	double r(0), acc_ratio(0) ;
+	
+	double en_sum(0);
 
-		for (unsigned int k = 0; k < axis1; ++k)
-			for (unsigned int l = 0; l < axis2; ++l)
-			sitespinsum[k][l] = 0;
-
-		for (unsigned int i = 1; i <=1e5+N_mc; ++i)
+	for (unsigned int i = 1; i <=1e5 + N_mc; ++i)
+	{
+		for (unsigned int j = 1; j <= 3*sys_size/2; ++j)
 		{
-			for (unsigned int j = 1; j <= sys_size; ++j)
+			//Choose a random spin site for the entire 2 replica system
+			double energy_diff(0);
+			label = roll_coin(1,2*sys_size);
+
+			//if the random spin site is located in layer 1
+			if (label <= sys_size)
 			{
-				
-//				Now choose a random spin site with site no.=label
-				unsigned int label, row, col ;
-				label = roll_coin(1, sys_size);
+				if (label % axis2 == 0)
+				{
+					row = (label / axis2) - 1;
+					col = axis2 -1 ;
+				}
+				else
+				{
+					col = label % axis2 - 1;
+					row = (label-col-1)/axis2;
+				}
+
+				energy_diff=-2.0*nn_energy(sitespin1, J_x, J_y, row, col);
+
+				if (row < axis1/2)
+					energy_diff +=-2.0*nn_energy(sitespin2, J_x, J_y, row, col);
+
+				//Generate a random no. r such that 0 < r < 1
+				r = random_real(0, 1);
+				acc_ratio = exp(-1.0 * energy_diff *beta);
+
+				//Spin flipped if r <= acceptance ratio
+				if (r <= acc_ratio)
+				{
+					sitespin1[row][col] *= -1;
+
+					if (row < axis1/2)
+						sitespin2[row][col] *=-1;
+
+					//this line on addition creates trouble
+					energy += energy_diff;
+				}
+			}
+
+			//if the random spin site is located in layer 2
+			if (label > sys_size)
+			{
+				label -= sys_size;
 
 				if (label % axis2 == 0)
 				{
@@ -135,40 +182,40 @@ int main(int argc, char const * argv[])
 					row = (label-col-1)/axis2;
 				}
 
-				double energy_diff =-2 * nn_energy(sitespin,J_x, J_y, row, col);
+				energy_diff=-2.0*nn_energy(sitespin2, J_x, J_y, row, col);
+
+				if (row < axis1/2)
+					energy_diff +=-2.0*nn_energy(sitespin1, J_x, J_y, row, col);
+
 				//Generate a random no. r such that 0 < r < 1
-				double r = random_real(0, 1);
-				double acc_ratio = exp(-1.0 * energy_diff* beta);
+				r = random_real(0, 1);
+				acc_ratio = exp(-1.0 * energy_diff *beta);
 
 				//Spin flipped if r <= acceptance ratio
 				if (r <= acc_ratio)
 				{
-					sitespin[row][col] *= -1;
+					sitespin2[row][col] *= -1;
+
+					if (row < axis1/2)
+						sitespin1[row][col] *=-1;
+
 					energy += energy_diff;
 				}
 			}
-
-			if (i > 1e5) 
-			{	en_sum += energy;
-				for (unsigned int k = 0; k < axis1; ++k)
-					for (unsigned int l = 0; l < axis2; ++l)
-					sitespinsum[k][l] += sitespin[k][l] ;
-			}
 		}
 
-		fout << beta << '\t' << en_sum / N_mc << endl;
+		if (i> 1e5) en_sum += energy;
+	}
 
-		for (unsigned int i = 0; i < axis1; ++i)
-			for (unsigned int j = 0; j < axis2; ++j)
-			EA += sitespinsum[i][j]*sitespinsum[i][j] / (N_mc*N_mc);
-//prints Edwards-Anderson order parameter for each beta value
-		gout << beta << '\t' << EA / sys_size << endl;
+	fout << beta << '\t' << en_sum / N_mc << endl;
 	}
 
 	fout.close();
-	gout.close();
 	return 0;
 }
+
+
+
 
 //function to generate random integer
 // between 2 integers a & b, including a & b
@@ -188,6 +235,7 @@ double random_real(int a, int b)
 	//on some range [min, max) of real number
 	return dist(gen);
 }
+
 
 //function to calculate total energy
 //for a given spin configuration

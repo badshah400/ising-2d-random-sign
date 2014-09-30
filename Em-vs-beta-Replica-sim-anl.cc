@@ -1,4 +1,4 @@
-//  g++ -Wall -O3 Em-vs-beta-Replica-sim-anl.cc -o testo
+//  g++ -Wall -O3 Em-vs-beta-Replica-sim-anl.cc -o replica
 // Run with command line arguments, e.g. ./testo betamin betamax delbeta
 // 2nd Renyi entropy for classical 2d Ising model in zero magnetic field with random J sign
 //Metropolis algorithm employed
@@ -80,8 +80,21 @@ int main(int argc, char * argv[])
 	array_2d J_x(boost::extents[axis1][axis2]);
 	array_2d J_y(boost::extents[axis1][axis2]);
 	//Read the random signed bonds for a particular stored realization
-	ifstream gxin("Jx-32.dat");
-	ifstream gyin("Jy-32.dat");
+	ifstream gxin("Jx-32-1.dat");
+	ifstream gyin("Jy-32-1.dat");
+
+	for (unsigned int i = 0; i < axis1; ++i)
+	{
+		for (unsigned int j = 0; j < axis2; ++j)
+		{
+			gxin>>J_x[i][j];
+			gyin>>J_y[i][j];
+		}
+	}
+
+	gxin.close();
+	gyin.close();
+
 
 	//define replica 1 spin configuration array
 	array_2d sitespin1(boost::extents[axis1][axis2]);
@@ -107,22 +120,13 @@ int main(int argc, char * argv[])
 	double energy = energy_tot(sitespin1, J_x, J_y);
 	energy += energy_tot(sitespin2, J_x, J_y);
 
-	for (unsigned int i = 0; i < axis1; ++i)
-	{
-		for (unsigned int j = 0; j < axis2; ++j)
-		{
-			gxin>>J_x[i][j];
-			gyin>>J_y[i][j];
-		}
-	}
-
-	gxin.close();
-	gyin.close();
-
+	
 	//calculate avg energy for replica spin config at temp 1/beta
 	//logic: for a[n1][n2], a[n1] is n1 copies of 1d array of length n2
 
-	for (double beta = beta_min; beta < beta_max + del_beta; beta += del_beta)
+	fout << 0 << '\t' << 0 << endl;
+
+	for (double beta =beta_min + del_beta; beta < beta_max + del_beta; beta += del_beta)
 	{
 		
 	unsigned int sys_size = axis1 * axis2;
